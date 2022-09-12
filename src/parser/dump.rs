@@ -11,10 +11,8 @@ const NOT_KEEP_ALIVE: &str = "off";
 
 #[derive(Error, Debug)]
 pub enum ParseDumpError {
-    #[error("No interface found in dump line")]
-    NoInterfaceProvided,
-    #[error("No interface found in dump line")]
-    NooInterfaceProvided,
+    #[error("No interfaces found in dump line")]
+    NoInterfacesProvided,
     #[error("the data for line `{0}` cannot be encoded to an endpoint")]
     InvalidEndpoint(String),
     #[error("Error parsing parameter `{0}`, err: `{1}`")]
@@ -91,29 +89,32 @@ impl TryFrom<&Vec<&str>> for Endpoint {
 impl TryFrom<&str> for WireGuard {
     type Error = ParseDumpError;
     fn try_from(value: &str) -> Result<Self, ParseDumpError> {
-        value
-            .lines()
-            .map(|line| {
-                line.split('\t')
-                    .filter(|s| !s.is_empty())
-                    .collect::<Vec<&str>>()
-            })
-            .try_fold(
-                WireGuard {
-                    interfaces: HashMap::new(),
-                },
-                |mut config, properties| {
-                    let endpoint = Endpoint::try_from(&properties)?;
-                    if let Some(endpoints) = config.interfaces.get_mut(properties[0]) {
-                        endpoints.push(endpoint);
-                    } else {
-                        let new_vec = vec![endpoint];
-                        config.interfaces.insert(properties[0].to_owned(), new_vec);
-                    }
+        match value.is_empty() {
+            true => Err(ParseDumpError::NoInterfacesProvided),
+            false => value
+                .lines()
+                .map(|line| {
+                    line.split('\t')
+                        .filter(|s| !s.is_empty())
+                        .collect::<Vec<&str>>()
+                })
+                .try_fold(
+                    WireGuard {
+                        interfaces: HashMap::new(),
+                    },
+                    |mut config, properties| {
+                        let endpoint = Endpoint::try_from(&properties)?;
+                        if let Some(endpoints) = config.interfaces.get_mut(properties[0]) {
+                            endpoints.push(endpoint);
+                        } else {
+                            let new_vec = vec![endpoint];
+                            config.interfaces.insert(properties[0].to_owned(), new_vec);
+                        }
 
-                    Ok(config)
-                },
-            )
+                        Ok(config)
+                    },
+                ),
+        }
     }
 }
 
@@ -129,9 +130,10 @@ wg0\t\tpcSg/lCzggscmdua73uy2k6xFQIKHi/Wdl1zBAQEnl0=\t\t(none)\t88.55.42.162:3651
 wg0\t\tFGbKv7F4rkIWl9gcc2P63JFO4zStX0Wk1A1Jr5/9qE8=\t\t(none)\t88.55.42.162:63801\t\t10.0.0.5/32\t\t1661695518\t4823836\t28528792\t\t25
 wg0\t\tLFKagB3/g8izSKU4w10otbbsfJMtjI4xSy8mvlXHOik=\t\t(none)\t38.111.111.111:8114\t\t10.0.0.6/32\t\t1661801952\t27229092\t\t55471340\t25
 ";
+    const EMPTY_DUMP: &'static str = "";
 
     #[test]
-    fn try_from() {
+    fn try_from_basic() {
         let x = WireGuard::try_from(BASIC_DUMP).unwrap();
         assert!(x.interfaces.len() == 1);
         assert!(x.interfaces["wg0"].len() == 5);
@@ -152,5 +154,11 @@ wg0\t\tLFKagB3/g8izSKU4w10otbbsfJMtjI4xSy8mvlXHOik=\t\t(none)\t38.111.111.111:81
 
         assert_eq!(local.local_port, 443);
         assert_eq!(local.persistent_keepalive, false);
+    }
+
+    #[test]
+    fn try_from_error() {
+        let result = WireGuard::try_from(EMPTY_DUMP);
+        assert!(matches!(result, Err(ParseDumpError::NoInterfacesProvided)));
     }
 }
