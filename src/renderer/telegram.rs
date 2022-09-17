@@ -1,4 +1,3 @@
-use std::fmt::{self, Display, Formatter};
 use std::time::{SystemTime, SystemTimeError};
 
 use crate::get::{Endpoint, WireGuard};
@@ -7,6 +6,11 @@ use crate::get::{Endpoint, WireGuard};
 // TODO: pass it as option
 const MAX_HANDSHAKE: u64 = 900;
 const IP_NOT_FOUND: &str = "IP_NOT_FOUND";
+
+pub(crate) trait WireguardDecorator {
+    fn new() -> Self;
+    fn decorate(&self, _: &WireGuard) -> String;
+}
 
 pub(crate) trait Timer {
     //TODO: return Duration
@@ -22,15 +26,13 @@ impl Timer for SystemTimer {
     }
 }
 
-pub(crate) struct TelegramWireguard<T: Timer> {
-    wg: WireGuard,
-    timer: T,
+pub(crate) struct SimpleDecorator {
+    timer: Box<dyn Timer>,
 }
 
-impl<T: Timer> ToString for TelegramWireguard<T> {
-    fn to_string(&self) -> String {
-        self.wg
-            .interfaces
+impl WireguardDecorator for SimpleDecorator {
+    fn decorate(&self, wg: &WireGuard) -> String {
+        wg.interfaces
             .iter()
             .fold("".to_string(), |mut output, (interface, endpoints)| {
                 output.push_str(format!("Interface: {}\nEndpoints:\n", interface).as_ref());
@@ -45,18 +47,14 @@ impl<T: Timer> ToString for TelegramWireguard<T> {
                 output
             })
     }
-}
-
-impl TelegramWireguard<SystemTimer> {
-    pub(crate) fn new(wg: WireGuard) -> Self {
-        TelegramWireguard {
-            wg,
-            timer: SystemTimer {},
+    fn new() -> Self {
+        SimpleDecorator {
+            timer: Box::new(SystemTimer {}),
         }
     }
 }
 
-impl<T: Timer> TelegramWireguard<T> {
+impl SimpleDecorator {
     fn endpoint_str(&self, endpoint: &Endpoint) -> String {
         match endpoint {
             Endpoint::Local(local_endpoint) => {
@@ -97,16 +95,19 @@ mod tests {
     use super::*;
     use crate::get::tests::new_wireguard;
 
+    fn verify_decorator_trait<D: WireguardDecorator>(wg: &WireGuard, expected_output: String) {
+        let d = D::new();
+        assert_eq!(d.decorate(wg), expected_output);
+    }
+
     #[test]
     fn verify_dump_empty() {
-        let decorate = TelegramWireguard {
-            wg: WireGuard {
+        verify_decorator_trait::<SimpleDecorator>(
+            &WireGuard {
                 interfaces: HashMap::new(),
             },
-            timer: SystemTimer {},
-        };
-
-        assert_eq!(decorate.to_string(), "");
+            "".to_string(),
+        );
     }
 
     #[test]
@@ -117,13 +118,11 @@ mod tests {
                 Ok(1662886837)
             }
         }
-        let decorate = TelegramWireguard {
-            wg: new_wireguard(),
-            timer: SystemTimer {},
+        let decorator = SimpleDecorator {
+            timer: Box::new(SystemTimer {}),
         };
-
         assert_eq!(
-            decorate.to_string(),
+            decorator.decorate(&new_wireguard()),
             "Interface: wg0
 Endpoints:
 \tLocal:
@@ -134,6 +133,7 @@ Endpoints:
 \t\tSend bytes: 17808
 \t\tReceived bytes: 11536
 \t\tLatest handshake: 10s ✅"
+                .to_string(),
         );
     }
 
@@ -145,13 +145,12 @@ Endpoints:
                 Ok(1662889837)
             }
         }
-        let decorate = TelegramWireguard {
-            wg: new_wireguard(),
-            timer: FutureTimer {},
+        let decorator = SimpleDecorator {
+            timer: Box::new(FutureTimer {}),
         };
 
         assert_eq!(
-            decorate.to_string(),
+            decorator.decorate(&new_wireguard()),
             "Interface: wg0
 Endpoints:
 \tLocal:

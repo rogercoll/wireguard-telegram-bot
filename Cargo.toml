@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 thiserror = "1.0.32"
 regex = "1.5.4"
-
+teloxide = { version = "0.10", features = ["macros", "auto-send"] }
+tokio = { version = "1.15.0", features = ["full"] }
