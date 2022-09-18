@@ -1,6 +1,7 @@
 use command::linux::{Cmd, UnixCmd};
 use get::WireGuard;
 use renderer::telegram::{SimpleDecorator, WireguardDecorator};
+use std::env;
 use std::error::Error;
 use teloxide::dptree::endpoint;
 use teloxide::{prelude::*, utils::command::BotCommands};
@@ -9,6 +10,8 @@ pub mod command;
 pub mod get;
 pub mod parser;
 pub mod renderer;
+
+const ENV_TELEGRAM_TOKEN: &str = "TELEGRAM_TOKEN";
 
 #[derive(BotCommands, Clone)]
 #[command(rename = "lowercase", description = "These commands are supported:")]
@@ -47,7 +50,10 @@ async fn answer(bot: AutoSend<Bot>, message: Message) -> Result<(), Box<dyn Erro
 }
 
 pub async fn start_unix_bot() {
-    let bot = Bot::from_env().auto_send();
+    let telegram_token =
+        env::var(ENV_TELEGRAM_TOKEN).expect("TELEGRAM_TOKEN env variable not defined.");
+
+    let bot = Bot::new(telegram_token).auto_send();
 
     let message_handler = Update::filter_message().branch(endpoint(answer));
 
