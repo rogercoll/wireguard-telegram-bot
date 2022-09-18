@@ -1,6 +1,7 @@
 # WireGuard Telegram Bot
 
 [![made-with-rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
+[![codecov](https://codecov.io/gh/rogercoll/wireguard-telegram-bot/branch/main/graph/badge.svg?token=JTWTXZ3SMA)](https://codecov.io/gh/rogercoll/wireguard-telegram-bot)
 
 Telegram bot that returns the output of the `wg show all dump`. 
 
